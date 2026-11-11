@@ -80,8 +80,10 @@ PLIST
 # build. Ký ad-hoc (-) thì mỗi lần build là một danh tính mới → quyền cũ không còn áp dụng, netstat bị ẩn socket.
 SIGN_ID=${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ {print $2; exit}')}
 codesign --force -s "${SIGN_ID:--}" "$APP"
-codesign --force -s "${SIGN_ID:--}" --identifier "$BUNDLE_ID.daemon" build/macsentryd
-codesign --force -s "${SIGN_ID:--}" --identifier "$BUNDLE_ID.es" build/macsentry-es
+# Daemon và helper chạy bằng root: bật hardened runtime (library validation, bỏ qua biến DYLD_*) để không nạp được
+# dylib lạ vào tiến trình root. Cả hai không cần JIT, dylib bên thứ ba hay biến DYLD_* nên không cần entitlement nào.
+codesign --force -s "${SIGN_ID:--}" --options runtime --identifier "$BUNDLE_ID.daemon" build/macsentryd
+codesign --force -s "${SIGN_ID:--}" --options runtime --identifier "$BUNDLE_ID.es" build/macsentry-es
 rm -rf build/obj build/AppIcon.iconset
 echo "Đã build MacSentry $VERSION ($BUILD_NUMBER) cho ${ARCH_LIST[*]} → build/"
 [ "$INSTALL" = 1 ] || exit 0
