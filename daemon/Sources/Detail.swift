@@ -6,6 +6,9 @@ import Security
 /// Chữ ký số của file thực thi / app (Security framework, không fork `codesign`)
 func signer(_ path: String?) -> String {
     guard let path, !path.isEmpty, exists(path) else { return "? (không tìm thấy file)" }
+    // Chỉ file thường / bundle: đường dẫn lấy từ plist của user có thể là FIFO hay thiết bị (mở ra có thể treo daemon)
+    var st = stat()
+    guard stat(path, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG || (st.st_mode & S_IFMT) == S_IFDIR else { return "? (không phải file thường)" }
     var code: SecStaticCode?
     guard SecStaticCodeCreateWithPath(URL(fileURLWithPath: path) as CFURL, [], &code) == errSecSuccess, let code else { return "?" }
     var info: CFDictionary?

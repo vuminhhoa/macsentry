@@ -24,13 +24,12 @@ func checkFiles() {
     // Chỉ băm khi ctime / kích thước / danh sách đổi
     guard statChanged("files", list) || first else { return }
     let changes = hashChanges("filesums", list)
-    if first { for f in list { try? FileManager.default.removeItem(atPath: copyOf(f)); try? FileManager.default.copyItem(atPath: f, toPath: copyOf(f)) }; return }
+    if first { list.forEach(saveCopy); return }
     for (kind, f) in changes {
         let copy = copyOf(f)
         if wazuhFIMCovers(f) {
             log("📝 File nhạy cảm \(kind.rawValue): \(f) (Wazuh syscheck đang theo dõi thời gian thực — Wazuh báo về manager)")
-            try? FileManager.default.removeItem(atPath: copy)
-            if kind != .removed { try? FileManager.default.copyItem(atPath: f, toPath: copy) }
+            if kind == .removed { try? FileManager.default.removeItem(atPath: copy) } else { saveCopy(f) }
             continue
         }
         switch kind {
@@ -50,8 +49,16 @@ func checkFiles() {
             }
             notify("📝 File nhạy cảm bị SỬA: \(f)\n\(lineDiff(readText(copy) ?? "", readText(f) ?? "", limit: 15))\n(< dòng cũ, > dòng mới)\(hint)")
         }
-        if kind != .removed { try? FileManager.default.removeItem(atPath: copy); try? FileManager.default.copyItem(atPath: f, toPath: copy) }
+        if kind != .removed { saveCopy(f) }
     }
+}
+
+/// Lưu bản sao NỘI DUNG để lần sau so (qua readText: file của user chỉ đọc khi đúng chủ). Không dùng copyItem: nó chép
+/// nguyên symlink (vd ~/.zshrc → /etc/ssh/ssh_host_ed25519_key), lần sau đọc bản sao sẽ đi theo symlink đó bằng quyền root
+func saveCopy(_ f: String) {
+    let copy = copyOf(f)
+    try? FileManager.default.removeItem(atPath: copy)
+    writeText(copy, readText(f) ?? "")
 }
 
 // MARK: - Login Items / Background Items (SMAppService) — dự phòng cho sự kiện BTM của helper ES
@@ -197,7 +204,7 @@ func checkBrowserExtensions() {
         let browser = browsers.first { d.contains("/\($0)/") } ?? "?"
         for e in glob(["\(d)/*"]) {
             let m = glob(["\(e)/*/manifest.json"]).last
-            var n = m.flatMap { FileManager.default.contents(atPath: $0) }
+            var n = m.flatMap { readFile($0, owner: true) }
                 .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["name"] as? String ?? "?"
             if n.hasPrefix("__MSG_") { n = "?" }
             exts.append("\(browser) (\(user)) | \(base(e)) | \(n)")

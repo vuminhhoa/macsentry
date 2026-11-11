@@ -13,6 +13,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `/etc/macsentry.conf`, not only before the `sed` that fills an existing one. A value with a newline, for
   example in the user's `telegram.json`, could add lines such as `ES_EXEC=0` to the root-owned config. With
   `--auto`, invalid app values are skipped (the daemon starts without Telegram); interactively, the script stops.
+- The daemon no longer follows links planted in a home folder when it reads a watched file. A user could point
+  `~/.zshrc`, `~/.ssh/authorized_keys`, a LaunchAgent plist or a remote-access log (or a file in `/Users/Shared`)
+  at a file only root can read, such as the SSH host keys or another user's files, and the daemon copied its
+  first lines or diff into the world-readable `/var/log/macsentry.log` and Telegram. Content of files under
+  `/Users` is now shown only for regular files owned by that home's owner; others are still hashed, so a change
+  is still reported. All checks run on the opened file descriptor, so there is no race.
+- A FIFO or device in a watched location (for example `~/.zshrc` or `~/.anydesk/x.trace`) no longer hangs the
+  daemon. Opening it blocked the daemon's queue, which silently stopped every check. Files are opened
+  non-blocking and only regular files are read, at most 32 MB.
 
 ## [1.2.0] - 2026-10-27
 

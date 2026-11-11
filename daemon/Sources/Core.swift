@@ -104,7 +104,36 @@ func sendNow(_ t: String) {
 // MARK: - Trạng thái lưu trên đĩa
 
 func sp(_ name: String) -> String { "\(stateDir)/\(name)" }
-func readText(_ p: String) -> String? { try? String(contentsOfFile: p, encoding: .utf8) }
+
+/// Mở file để daemon (root) đọc mà không bị user thường lừa. Mọi kiểm tra làm trên chính fd đã mở (fstat), nên không
+/// có khe TOCTOU giữa lúc kiểm tra và lúc đọc:
+/// - O_NONBLOCK + chỉ nhận file thường: một FIFO (vd ~/.zshrc, ~/.anydesk/x.trace) làm `open` treo mãi → hàng đợi
+///   chính dừng, daemon ngừng giám sát mà không báo gì
+/// - `owner`: file dưới /Users/<tên>/ phải thuộc đúng chủ thư mục home đó (không phải root). User tự tạo được symlink,
+///   hard link hay thư mục symlink tới file chỉ root đọc được (khoá SSH của máy, file của user khác...) → nội dung sẽ
+///   lọt vào log ai cũng đọc được và Telegram. Dùng cho mọi chỗ đưa NỘI DUNG file ra ngoài.
+/// - File trạng thái của daemon (stateDir) không bao giờ là symlink (O_NOFOLLOW)
+func openForReading(_ p: String, owner: Bool) -> FileHandle? {
+    let noFollow: Int32 = p.hasPrefix(stateDir + "/") ? O_NOFOLLOW : 0
+    let fd = open(p, O_RDONLY | O_NONBLOCK | O_CLOEXEC | noFollow)
+    guard fd >= 0 else { return nil }
+    let h = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+    var st = stat()
+    guard fstat(fd, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return nil }
+    if owner && p.hasPrefix("/Users/") {
+        let user = p.split(separator: "/").dropFirst().first.map(String.init) ?? ""
+        var home = stat()
+        guard !user.isEmpty, stat("/Users/\(user)", &home) == 0, home.st_uid != 0, st.st_uid == home.st_uid else { return nil }
+    }
+    return h
+}
+/// Nội dung file (tối đa 32 MB — file khổng lồ do user tạo không làm daemon hết bộ nhớ). `owner`: xem openForReading
+func readFile(_ p: String, owner: Bool = false) -> Data? {
+    guard let h = openForReading(p, owner: owner) else { return nil }
+    return (try? h.read(upToCount: 32 << 20)) ?? Data()
+}
+/// Nội dung dạng chữ — có thể được gửi đi (diff, vài dòng đầu) nên file dưới /Users phải đúng chủ
+func readText(_ p: String) -> String? { readFile(p, owner: true).flatMap { String(data: $0, encoding: .utf8) } }
 func writeText(_ p: String, _ s: String) { try? s.write(toFile: p, atomically: true, encoding: .utf8) }
 func exists(_ p: String) -> Bool { FileManager.default.fileExists(atPath: p) }
 func lines(_ s: String?) -> [String] { (s ?? "").split(separator: "\n").map(String.init) }
@@ -163,7 +192,7 @@ func statChanged(_ name: String, _ paths: [String]) -> Bool {
 }
 
 func sha16(_ path: String) -> String? {
-    guard let d = FileManager.default.contents(atPath: path) else { return nil }
+    guard let d = readFile(path) else { return nil }
     return SHA256.hash(data: d).map { String(format: "%02x", $0) }.joined().prefix(16).description
 }
 
@@ -192,7 +221,7 @@ func tailNew(_ name: String, _ path: String, newOK: Bool = false) -> String {
     var off: UInt64
     if let prev { off = prev } else { guard newOK else { return "" }; off = 0 }
     if size < off { off = 0 }   // file bị xoay vòng / làm mới
-    guard size > off, let h = FileHandle(forReadingAtPath: path) else { return "" }
+    guard size > off, let h = openForReading(path, owner: true) else { return "" }
     defer { try? h.close() }
     try? h.seek(toOffset: off)
     let data = (try? h.read(upToCount: 200_000)) ?? Data()
@@ -262,12 +291,12 @@ func run(_ path: String, _ args: [String] = [], timeout: TimeInterval = 30) -> S
 }
 
 func plist(_ p: String) -> [String: Any]? {
-    guard let d = FileManager.default.contents(atPath: p) else { return nil }
+    guard let d = readFile(p) else { return nil }
     return (try? PropertyListSerialization.propertyList(from: d, format: nil)) as? [String: Any]
 }
 /// Nội dung plist dạng chữ (XML) để so khác biệt; file không phải plist → nội dung gốc
 func plistText(_ p: String) -> String {
-    if let d = FileManager.default.contents(atPath: p),
+    if let d = readFile(p, owner: true),
        let o = try? PropertyListSerialization.propertyList(from: d, format: nil),
        let x = try? PropertyListSerialization.data(fromPropertyList: o, format: .xml, options: 0) {
         return String(decoding: x, as: UTF8.self)
