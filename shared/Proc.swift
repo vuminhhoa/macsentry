@@ -17,8 +17,9 @@ func procBSD(_ pid: Int32) -> ProcInfo? {
     let size = Int32(MemoryLayout<proc_bsdinfo>.size)
     guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
     // pbi_name (32 ký tự) đầy đủ hơn pbi_comm (16 ký tự)
-    var name = withUnsafeBytes(of: info.pbi_name) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
-    if name.isEmpty { name = withUnsafeBytes(of: info.pbi_comm) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) } }
+    // Đọc tới byte 0 nhưng không vượt quá mảng: tên dài đúng 32 byte không có byte 0 kết thúc (String(cString:) sẽ đọc lố)
+    var name = withUnsafeBytes(of: info.pbi_name) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+    if name.isEmpty { name = withUnsafeBytes(of: info.pbi_comm) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) } }
     return ProcInfo(pid: pid, name: name, ppid: Int(info.pbi_ppid), uid: Int(info.pbi_uid),
                     start: Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec)))
 }

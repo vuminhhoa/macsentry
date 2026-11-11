@@ -79,7 +79,8 @@ func resolveTrusted() {
             .trimmingCharacters(in: .whitespaces)
         guard !entry.isEmpty else { continue }
         let parts = entry.split(separator: ":", maxSplits: 1).map(String.init)
-        let h = parts[0], port = parts.count > 1 ? parts[1] : "*"
+        guard let h = parts.first else { continue }   // dòng chỉ có ":" → bỏ qua (không crash daemon)
+        let port = parts.count > 1 ? parts[1] : "*"
         var res: UnsafeMutablePointer<addrinfo>?
         var ips: [String] = []
         if getaddrinfo(h, nil, nil, &res) == 0 {
