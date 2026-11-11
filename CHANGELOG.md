@@ -22,6 +22,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A FIFO or device in a watched location (for example `~/.zshrc` or `~/.anydesk/x.trace`) no longer hangs the
   daemon. Opening it blocked the daemon's queue, which silently stopped every check. Files are opened
   non-blocking and only regular files are read, at most 32 MB.
+- The Endpoint Security helper skips commands started by MacSentry only when a parent process really is
+  `/usr/local/libexec/macsentryd` or `macsentry-es` running as root (checked through libproc). It used to look for
+  that path in the parents' command lines, which any process can set, so wrapping a command in, for example,
+  `sh -c '…' /usr/local/libexec/macsentry` hid it from every exec rule.
+- The helper matches exec rules against the first 16 KB of a command line. A command line of up to 1 MB, crafted
+  by any user, made some rules take minutes, stalling the helper while it still looked alive to the daemon.
 
 ## [1.2.0] - 2026-10-27
 

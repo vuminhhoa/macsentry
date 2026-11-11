@@ -145,17 +145,35 @@ func onTCC(_ e: JSON, _ msg: JSON) {
         """)
 }
 
+/// Tiến trình (hoặc một trong 6 cấp cha của nó) có phải chính macsentryd / macsentry-es không. Xét file chạy thật
+/// (proc_pidpath, do kernel cấp) và uid root — KHÔNG xét dòng lệnh: dòng lệnh (argv) do tiến trình tự đặt, kẻ tấn công
+/// chỉ cần thêm chữ "/usr/local/libexec/macsentry" vào argv của tiến trình cha là mọi lệnh con được bỏ qua.
+let selfExes: Set<String> = ["/usr/local/libexec/macsentryd", "/usr/local/libexec/macsentry-es"]
+func spawnedByMacSentry(_ start: Int?) -> Bool {
+    var cur = start ?? 0
+    for _ in 0..<6 {
+        guard cur > 1, let info = procBSD(Int32(cur)) else { return false }
+        if info.uid == 0, let exe = procPath(Int32(cur)), selfExes.contains(exe) { return true }
+        cur = info.ppid
+    }
+    return false
+}
+
+/// Phần dòng lệnh đem so regex: tối đa 16 KB. Dòng lệnh dài tới ~1 MB (ARG_MAX) do user thường tự đặt, với mẫu
+/// kiểu `\bnc\b.*\s-e\s` regex tốn thời gian bậc hai (hàng phút) → helper treo, mọi sự kiện sau đó bị bỏ lỡ trong
+/// khi es_alive vẫn được chạm (daemon tưởng helper vẫn chạy).
+func regexInput(_ s: String) -> String { String(decoding: s.utf8.prefix(16_384), as: UTF8.self) }
+
 func onExec(_ e: JSON, _ msg: JSON) {
     guard let target = dict(e, "target") else { return }
     let args = (e["args"] as? [String]) ?? []
     let exe = path(target)
-    let cmd = args.isEmpty ? exe : args.joined(separator: " ")
+    let cmd = regexInput(args.isEmpty ? exe : args.joined(separator: " "))
     guard let rule = suspicious(exe: exe, cmd: cmd) else { return }
-    // Bỏ qua lệnh do chính MacSentry chạy (nhìn dòng lệnh đầy đủ của tiến trình cha), và lệnh động tới
+    // Bỏ qua lệnh do chính MacSentry chạy (file chạy thật của tiến trình cha), và lệnh động tới
     // MacSentry lúc đang cập nhật (install.sh)
-    let anc = ancestry(int(target, "ppid"))
-    let parents = anc.text
-    if anc.commands.contains(where: { $0.contains("/usr/local/libexec/macsentry") }) { return }
+    if spawnedByMacSentry(int(target, "ppid")) { return }
+    let parents = ancestry(int(target, "ppid")).text
     if rule.selfRelated && FileManager.default.fileExists(atPath: stateDir + "/updating") { return }
     if allowed("\(cmd) || \(parents)") {
         // Lệnh được cho phép thường lặp liên tục (vd Claude Code đọc keychain) → ghi log mỗi giờ 1 lần, tránh phình log
