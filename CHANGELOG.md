@@ -28,6 +28,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `sh -c '…' /usr/local/libexec/macsentry` hid it from every exec rule.
 - The helper matches exec rules against the first 16 KB of a command line. A command line of up to 1 MB, crafted
   by any user, made some rules take minutes, stalling the helper while it still looked alive to the daemon.
+- The daemon checks that the menu bar app is running by its executable path (`~/Applications` or
+  `/Applications`), not only by process name, so a user process named `MacSentry` no longer hides that the app
+  was stopped.
 
 ## [1.2.0] - 2026-10-27
 

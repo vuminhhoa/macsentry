@@ -21,11 +21,16 @@ func checkLaunchItems() {
     for path in d.removed { info("🧩 Đã gỡ chương trình tự khởi động\nFile: \(path)") }
 }
 
-/// App MacSentry phải luôn chạy khi có người đăng nhập (vắng ~30 giây liên tục → có thể đã bị gỡ)
+/// App MacSentry phải luôn chạy khi có người đăng nhập (vắng ~30 giây liên tục → có thể đã bị gỡ).
+/// Xét đường dẫn file chạy thật (libproc), không chỉ tên: phần mềm độc chạy bằng user tắt được app (launchctl bootout
+/// LaunchAgent của chính user) rồi chạy một tiến trình bất kỳ đặt tên "MacSentry" để daemon tưởng app vẫn chạy.
+/// File chạy ở các vị trí này bị tráo thì checkSelf báo đổi chữ ký.
 var appMissing = 0
 func checkApp(_ procs: [Proc]) {
     let console = consoleUser()
-    guard console != "root", !running("MacSentry", in: procs) else { appMissing = 0; return }
+    let exes = glob(["/Users/*/Applications/MacSentry.app/Contents/MacOS/MacSentry", "/Applications/MacSentry.app/Contents/MacOS/MacSentry"])
+    let appPaths = Set(exes + exes.map { "/System/Volumes/Data" + $0 })
+    guard console != "root", !procs.contains(where: { p in p.path.map { appPaths.contains($0) } ?? false }) else { appMissing = 0; return }
     appMissing += 1
     if appMissing >= 3, throttle("appmissing", 600) {
         alert("⚠️ App MacSentry KHÔNG chạy (user đang đăng nhập: \(console))\nCó thể đã bị gỡ LaunchAgent hoặc xoá app")
