@@ -31,6 +31,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The daemon checks that the menu bar app is running by its executable path (`~/Applications` or
   `/Applications`), not only by process name, so a user process named `MacSentry` no longer hides that the app
   was stopped.
+- `daemon/install.sh` and `daemon/uninstall.sh` use a fixed system `PATH`. `sudo` on macOS keeps the user's
+  `PATH`, so a `plutil` or `sed` planted in a user-writable folder such as `/opt/homebrew/bin` ran as root.
+- `daemon/install.sh` refuses to install when `/usr/local` is not owned by root or is writable by others, and
+  resets `/usr/local/libexec` to `root:wheel 755`. Whoever can write these folders can replace the binaries the
+  LaunchDaemons run as root.
+- `macsentryd` and `macsentry-es` are signed with the hardened runtime, so no foreign library can be loaded into
+  the root processes.
 
 ## [1.2.0] - 2026-10-27
 

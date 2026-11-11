@@ -2,6 +2,7 @@
 # Gỡ macsentryd + macsentry-es. Chạy: sudo ./daemon/uninstall.sh  (giữ lại /var/log/macsentry.log)
 # Gỡ cả app: ./uninstall.sh ở thư mục gốc
 set -euo pipefail
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin   # chạy bằng root: không dùng PATH của user (xem install.sh)
 [ "$(id -u)" = 0 ] || { echo "Cần quyền root: sudo $0"; exit 1; }
 touch /var/db/macsentry/clean_stop 2>/dev/null || true
 for LABEL in io.github.vuminhhoa.macsentry.es io.github.vuminhhoa.macsentry.daemon; do

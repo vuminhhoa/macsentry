@@ -5,6 +5,9 @@
 #   --auto         không hỏi gì (app gọi khi cài / cập nhật): lần đầu dùng chung bot của app, không heartbeat, bật exec.
 #                  Tự bật khi không có terminal. Cấu hình cũ chưa có token mà app đã có Telegram → điền token của app.
 set -euo pipefail
+# Chạy bằng root: chỉ dùng công cụ của hệ thống. sudo trên macOS giữ PATH của user (vd /opt/homebrew/bin do user ghi
+# được) → một `plutil` / `sed` giả đặt trước trong PATH sẽ chạy bằng root
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 RECONFIGURE=0; AUTO=0
 for arg in "$@"; do
   case $arg in
@@ -104,6 +107,17 @@ ALLOW
 fi
 
 mkdir -p /usr/local/libexec /var/db/macsentry
+# LaunchDaemon chạy file trong /usr/local/libexec bằng root: user nào ghi được /usr/local hay /usr/local/libexec (vd do
+# trình cài khác chown) là đổi tên / thay được macsentryd → chạy mã của mình bằng root ở lần khởi động sau
+if [ "$(stat -f %u /usr/local)" != 0 ] || [ $(( 0$(stat -f %Lp /usr/local) & 022 )) != 0 ]; then
+  echo "/usr/local không thuộc root hoặc user khác ghi được → không an toàn để cài daemon chạy bằng root." >&2
+  echo "Sửa: sudo chown root:wheel /usr/local && sudo chmod 755 /usr/local, rồi cài lại." >&2
+  exit 1
+fi
+if [ "$(stat -f %u /usr/local/libexec)" != 0 ] || [ $(( 0$(stat -f %Lp /usr/local/libexec) & 022 )) != 0 ]; then
+  echo "⚠️  /usr/local/libexec không thuộc root hoặc user khác ghi được → đặt lại root:wheel 755" >&2
+  chown root:wheel /usr/local/libexec; chmod 755 /usr/local/libexec
+fi
 install -o root -g wheel -m 755 "$DAEMON_BIN" /usr/local/libexec/macsentryd
 rm -rf /usr/local/libexec/macsentry   # module shell của bản cũ (daemon nay là một binary Swift)
 install -o root -g wheel -m 755 "$ES_BIN" /usr/local/libexec/macsentry-es
