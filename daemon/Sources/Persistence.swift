@@ -170,7 +170,7 @@ func checkPersistence() {
 
     let apps = glob(["/Applications/*.app", "/Users/*/Applications/*.app"])
     let dapp = diffState("apps", apps, nonempty: true)
-    for a in dapp.added { info("📦 App mới được cài: \(a)\nChữ ký: \(signer(a))") }
+    for a in dapp.added { info("📦 App mới được cài: \(a)\nChữ ký: \(signerBounded(a))") }
     for a in dapp.removed { info("📦 App bị gỡ: \(a)") }
 }
 

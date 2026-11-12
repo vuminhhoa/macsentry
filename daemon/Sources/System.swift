@@ -16,7 +16,7 @@ func checkLaunchItems() {
     for path in d.added {
         let pl = plist(path)
         let prog = (pl?["Program"] as? String) ?? (pl?["ProgramArguments"] as? [String])?.first
-        alert("🧩 Có chương trình tự khởi động mới\nFile: \(path)\nChạy: \(prog ?? "?")\nChữ ký: \(signer(prog))")
+        alert("🧩 Có chương trình tự khởi động mới\nFile: \(path)\nChạy: \(prog ?? "?")\nChữ ký: \(signerBounded(prog))")
     }
     for path in d.removed { info("🧩 Đã gỡ chương trình tự khởi động\nFile: \(path)") }
 }

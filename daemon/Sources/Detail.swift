@@ -23,6 +23,21 @@ func signer(_ path: String?) -> String {
     return auth
 }
 
+/// `signer` cho đường dẫn user kiểm soát được (lấy từ LaunchAgent / app của user): bước stat ở trên không nguyên tử,
+/// user có thể tráo file thường thành FIFO trước khi Security framework mở lại → treo. Kiểm tra trên luồng riêng,
+/// quá hạn thì bỏ để không chặn hàng đợi chính (luồng bị treo tự kết thúc khi FIFO được mở phía bên kia).
+func signerBounded(_ path: String?, timeout: TimeInterval = 10) -> String {
+    final class Box: @unchecked Sendable { let lock = NSLock(); var value: String? }
+    let box = Box(), done = DispatchSemaphore(value: 0)
+    DispatchQueue.global(qos: .utility).async {
+        let s = signer(path)
+        box.lock.withLock { box.value = s }
+        done.signal()
+    }
+    guard done.wait(timeout: .now() + timeout) == .success else { return "? (hết thời gian kiểm tra chữ ký)" }
+    return box.lock.withLock { box.value } ?? "?"
+}
+
 /// Mô tả tiến trình: dòng lệnh, user, thời điểm chạy, chuỗi tiến trình cha, chữ ký số
 func procDetail(_ pid: Int32) -> String {
     guard let p = procBSD(pid) else { return "(tiến trình \(pid) đã kết thúc trước khi kịp ghi chi tiết)" }

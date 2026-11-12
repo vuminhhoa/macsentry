@@ -83,7 +83,7 @@ func checkSelf() {
     // Lần đầu: ghi chữ ký hiện tại của các file chạy để lần sau so
     for f in files where !f.hasSuffix(".plist") && !f.hasPrefix("/etc/") {
         let sf = sp("signers/self_" + f.replacingOccurrences(of: "/", with: "_"))
-        if !exists(sf) { writeText(sf, signer(f)) }
+        if !exists(sf) { writeText(sf, signerBounded(f)) }
     }
     guard statChanged("self", files) else { return }
     // install.sh ghi dấu "just_updated" khi cài/cập nhật → thay đổi trong 10 phút sau đó chỉ là tin im lặng
@@ -94,7 +94,7 @@ func checkSelf() {
         // (bị tráo bằng binary khác) → cảnh báo
         let isExe = !f.hasSuffix(".plist") && !f.hasPrefix("/etc/")
         let sigFile = sp("signers/self_" + f.replacingOccurrences(of: "/", with: "_"))
-        let sig = isExe && kind != .removed ? signer(f) : ""
+        let sig = isExe && kind != .removed ? signerBounded(f) : ""
         let oldSig = readText(sigFile)
         if isExe && kind != .removed { writeText(sigFile, sig) }
         switch kind {
