@@ -79,7 +79,10 @@ PLIST
 # Ký bằng chứng chỉ Apple Development (nếu có) để macOS giữ quyền "Mạng cục bộ" và Full Disk Access qua các lần
 # build. Ký ad-hoc (-) thì mỗi lần build là một danh tính mới → quyền cũ không còn áp dụng, netstat bị ẩn socket.
 SIGN_ID=${SIGN_ID:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ {print $2; exit}')}
-codesign --force -s "${SIGN_ID:--}" "$APP"
+# App giữ token Telegram và chạy bước cài daemon bằng root → cũng bật hardened runtime (chặn nạp dylib lạ / DYLD_*).
+# NSAppleScript "do shell script" chạy trong tiến trình (không gửi Apple Event cho app khác) nên không cần
+# entitlement automation.apple-events; CoreAudio / CoreMediaIO chỉ đọc trạng thái thiết bị, không cần quyền camera/mic.
+codesign --force -s "${SIGN_ID:--}" --options runtime "$APP"
 # Daemon và helper chạy bằng root: bật hardened runtime (library validation, bỏ qua biến DYLD_*) để không nạp được
 # dylib lạ vào tiến trình root. Cả hai không cần JIT, dylib bên thứ ba hay biến DYLD_* nên không cần entitlement nào.
 codesign --force -s "${SIGN_ID:--}" --options runtime --identifier "$BUNDLE_ID.daemon" build/macsentryd
