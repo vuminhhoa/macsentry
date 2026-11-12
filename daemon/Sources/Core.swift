@@ -51,11 +51,17 @@ let hostName = (SCDynamicStoreCopyComputerName(nil, nil) as String?) ?? ProcessI
 let timeFmt: DateFormatter = { let f = DateFormatter(); f.dateFormat = "dd/MM/yyyy HH:mm:ss"; return f }()
 func nowStr() -> String { timeFmt.string(from: Date()) }
 
-/// Log ai cũng đọc được (app hiển thị tab Sự kiện) → che bí mật trước khi ghi (dòng lệnh của tiến trình có thể chứa
-/// mật khẩu). Che trước khi nối dòng: mẫu che tới hết dòng.
+/// Log nhóm admin đọc được (app hiển thị tab Sự kiện) → vẫn che bí mật trước khi ghi (dòng lệnh của tiến trình có thể
+/// chứa mật khẩu). Che trước khi nối dòng: mẫu che tới hết dòng.
 func log(_ s: String) {
     let line = "\(nowStr()) \(maskSecrets(s).replacingOccurrences(of: "\n", with: " "))\n"
-    let fd = open(logPath, O_WRONLY | O_APPEND | O_CREAT, 0o644)
+    var fd = open(logPath, O_WRONLY | O_APPEND)
+    if fd < 0 {
+        // Lần đầu (install.sh chưa tạo): 640 root:admin — log có dòng lệnh của mọi user, user thường không được đọc
+        fd = open(logPath, O_WRONLY | O_APPEND | O_CREAT | O_EXCL, 0o640)
+        if fd >= 0, geteuid() == 0, let g = getgrnam("admin") { fchown(fd, 0, g.pointee.gr_gid) }
+        if fd < 0 { fd = open(logPath, O_WRONLY | O_APPEND) }
+    }
     guard fd >= 0 else { return }
     _ = line.withCString { write(fd, $0, strlen($0)) }
     close(fd)
@@ -111,7 +117,7 @@ func sp(_ name: String) -> String { "\(stateDir)/\(name)" }
 ///   chính dừng, daemon ngừng giám sát mà không báo gì
 /// - `owner`: file dưới /Users/<tên>/ phải thuộc đúng chủ thư mục home đó (không phải root). User tự tạo được symlink,
 ///   hard link hay thư mục symlink tới file chỉ root đọc được (khoá SSH của máy, file của user khác...) → nội dung sẽ
-///   lọt vào log ai cũng đọc được và Telegram. Dùng cho mọi chỗ đưa NỘI DUNG file ra ngoài.
+///   lọt vào log (nhóm admin đọc được) và Telegram. Dùng cho mọi chỗ đưa NỘI DUNG file ra ngoài.
 /// - File trạng thái của daemon (stateDir) không bao giờ là symlink (O_NOFOLLOW)
 func openForReading(_ p: String, owner: Bool) -> FileHandle? {
     let noFollow: Int32 = p.hasPrefix(stateDir + "/") ? O_NOFOLLOW : 0

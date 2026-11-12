@@ -97,7 +97,8 @@ Cập nhật ngay**: app chạy `git pull`, `./build.sh`, cài lại daemon (h�
 lại. Cài đặt và `/etc/macsentry.*` được giữ nguyên. Chạy tay: `git pull && ./build.sh && sudo ./daemon/install.sh`.
 
 **Gỡ cài đặt**: `./uninstall.sh` (gỡ daemon và app, giữ dữ liệu và log) hoặc `./uninstall.sh --purge` (xoá cả lịch sử,
-IP tin cậy, cấu hình Telegram). Log `/var/log/macsentry.log` có cờ chỉ-ghi-thêm. Muốn xoá thì chạy
+IP tin cậy, cấu hình Telegram). Log `/var/log/macsentry.log` có cờ chỉ-ghi-thêm và chỉ nhóm `admin` đọc được (chứa dòng
+lệnh của mọi user), nên tab Sự kiện cần tài khoản quản trị. Muốn xoá thì chạy
 `sudo chflags nosappnd /var/log/macsentry.log && sudo rm /var/log/macsentry.log`.
 
 ## Cấu hình

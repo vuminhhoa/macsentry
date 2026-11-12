@@ -123,11 +123,18 @@ rm -rf /usr/local/libexec/macsentry   # module shell của bản cũ (daemon nay
 install -o root -g wheel -m 755 "$ES_BIN" /usr/local/libexec/macsentry-es
 chmod 700 /var/db/macsentry
 
-# Log: ai cũng đọc được (app hiển thị tab "Sự kiện"), chỉ root ghi, và chỉ được ghi thêm
-# (Chỉ làm lần đầu: file đã có cờ sappnd thì touch/chmod đều bị từ chối, kể cả root)
-if [ ! -e /var/log/macsentry.log ]; then
-  touch /var/log/macsentry.log; chown root:wheel /var/log/macsentry.log; chmod 644 /var/log/macsentry.log
-  chflags sappnd /var/log/macsentry.log
+# Log: chỉ root ghi, chỉ được ghi thêm, và chỉ nhóm admin đọc được (app hiển thị tab "Sự kiện"). Log chứa dòng lệnh,
+# sudo của mọi user → không để user thường đọc được trên máy dùng chung.
+# File đã có cờ sappnd thì chown/chmod bị từ chối, kể cả root → bỏ cờ, đổi quyền, đặt lại cờ (bản cũ tạo 644 root:wheel)
+LOGF=/var/log/macsentry.log
+if [ ! -e "$LOGF" ]; then
+  touch "$LOGF"; chown root:admin "$LOGF"; chmod 640 "$LOGF"
+  chflags sappnd "$LOGF"
+elif [ "$(stat -f '%Su:%Sg %Lp' "$LOGF")" != "root:admin 640" ]; then
+  if chflags nosappnd "$LOGF" && chown root:admin "$LOGF" && chmod 640 "$LOGF"; then :; else
+    echo "⚠️ Không đổi được quyền $LOGF thành root:admin 640" >&2
+  fi
+  chflags sappnd "$LOGF"
 fi
 
 write_plist() { # $1 = label, $2.. = ProgramArguments

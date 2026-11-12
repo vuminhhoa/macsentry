@@ -135,7 +135,8 @@ git pull
 ./uninstall.sh --purge    # also removes history, trusted IPs and the Telegram settings
 ```
 
-The log at `/var/log/macsentry.log` is append-only by design. Remove it with
+The log at `/var/log/macsentry.log` is append-only by design and readable only by the `admin` group (it holds
+every user's command lines), so the Events page needs an administrator account. Remove it with
 `sudo chflags nosappnd /var/log/macsentry.log && sudo rm /var/log/macsentry.log`.
 
 ## Configuration

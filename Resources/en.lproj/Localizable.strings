@@ -185,6 +185,7 @@
 /* Sự kiện */
 "Không đọc được log" = "Can’t Read Log";
 "Chưa có file %@." = "%@ doesn’t exist yet.";
+"Chỉ tài khoản quản trị (nhóm admin) đọc được %@." = "Only administrator accounts (the admin group) can read %@.";
 "Chưa cài macsentryd. Cài bằng lệnh: %@" = "macsentryd isn’t installed. Install it with: %@";
 "Mức độ" = "Level";
 "Tất cả" = "All";

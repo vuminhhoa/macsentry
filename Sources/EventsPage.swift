@@ -49,8 +49,11 @@ struct EventsPage: View {
         Group {
             if log.unreadable && log.events.isEmpty {
                 EmptyState(icon: "doc.questionmark", title: L("Không đọc được log"),
-                           message: Telegram.daemonInstalled ? L("Chưa có file %@.", Store.daemonLogPath)
-                               : L("Chưa cài macsentryd. Cài bằng lệnh: %@", Store.daemonInstallCommand))
+                           message: !Telegram.daemonInstalled ? L("Chưa cài macsentryd. Cài bằng lệnh: %@", Store.daemonInstallCommand)
+                               // Log chỉ nhóm admin đọc được (chứa dòng lệnh của mọi user)
+                               : FileManager.default.fileExists(atPath: Store.daemonLogPath)
+                                   ? L("Chỉ tài khoản quản trị (nhóm admin) đọc được %@.", Store.daemonLogPath)
+                                   : L("Chưa có file %@.", Store.daemonLogPath))
                     .safeAreaBar(edge: .bottom) { statusBar(nil) }
             } else {
                 let data = rows
